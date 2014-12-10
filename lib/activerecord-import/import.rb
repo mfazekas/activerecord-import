@@ -318,6 +318,20 @@ class ActiveRecord::Base
 
     private
 
+    if ActiveRecord::VERSION::MAJOR > 4 || (ActiveRecord::VERSION::MINOR >= 2 && ActiveRecord::VERSION::MAJOR == 4)
+      def quote(connection_memo,val,column)
+        connection_memo.quote(val, column)
+      end
+    else
+      def quote(connection_memo,val,column)
+        if serialized_attributes.include?(column.name)
+          connection_memo.quote(serialized_attributes[column.name].dump(val), column)
+        else
+          connection_memo.quote(val, column)
+        end
+      end
+    end
+
     # Returns SQL the VALUES for an INSERT statement given the passed in +columns+
     # and +array_of_attributes+.
     def values_sql_for_columns_and_attributes(columns, array_of_attributes)   # :nodoc:
@@ -332,11 +346,7 @@ class ActiveRecord::Base
           if val.nil? && column.name == primary_key && !sequence_name.blank?
              connection_memo.next_value_for_sequence(sequence_name)
           else
-            if column_for_attribute(column.name)
-              connection_memo.quote(column_for_attribute(column.name).type_cast_for_database(val), column)
-            else
-              connection_memo.quote(val, column)
-            end
+            quote(connection_memo,val,column)
           end
         end
         "(#{my_values.join(',')})"
